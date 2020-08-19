@@ -5,9 +5,11 @@ using System.Configuration.Install;
 using System.Diagnostics;
 using System.Linq;
 using System.Reflection;
+using System.Runtime.InteropServices;
 using System.ServiceProcess;
 using System.Text;
 using System.Threading.Tasks;
+using System.Timers;
 
 namespace TakipsiClient
 {
@@ -31,10 +33,31 @@ namespace TakipsiClient
 
     class Program
     {
+        [DllImport("cid.dll", EntryPoint = "CidData", CharSet = CharSet.Ansi)]
+        [return: MarshalAs(UnmanagedType.CustomMarshaler, MarshalTypeRef = typeof(ConstCharPtrMarshaler))]
+        public static extern string CidData();
+
+        [DllImport("cid.dll", EntryPoint = "CidStart")]
+        public static extern string CidStart();
+
         public const string ServiceName = "TakipsiClient";
 
         static void Main(string[] args)
         {
+            CidStart();
+
+            //Program.Start(args);
+            while (true) {
+                string temp = "";
+                // 
+                temp = CidData();
+                if (temp != "")
+                {
+                    Console.WriteLine(temp);
+                }
+                Console.ReadKey();
+            }
+
             if (!Environment.UserInteractive)
             {
                 using (var service = new Service())
@@ -52,12 +75,27 @@ namespace TakipsiClient
 
         public static void Start(string[] args)
         {
-            // onstart code here
+
+            Timer aTimer = new Timer();
+            aTimer.Elapsed += new ElapsedEventHandler(OnTimedEvent);
+            aTimer.Interval = 1000;
+            aTimer.Enabled = true;
         }
 
         public static void Stop()
         {
             // onstop code here
+        }
+
+        private static void OnTimedEvent(object source, ElapsedEventArgs e)
+        {
+            string temp = "";
+            // 
+            temp = CidData();
+            if (temp != "")
+            {
+                Console.WriteLine(temp);
+            }
         }
     }
 
@@ -80,6 +118,39 @@ namespace TakipsiClient
 
             Installers.Add(spi);
             Installers.Add(si);
+        }
+    }
+
+    public class ConstCharPtrMarshaler : ICustomMarshaler
+    {
+        public object MarshalNativeToManaged(IntPtr pNativeData)
+        {
+            return Marshal.PtrToStringAnsi(pNativeData);
+        }
+
+        public IntPtr MarshalManagedToNative(object ManagedObj)
+        {
+            return IntPtr.Zero;
+        }
+
+        public void CleanUpNativeData(IntPtr pNativeData)
+        {
+        }
+
+        public void CleanUpManagedData(object ManagedObj)
+        {
+        }
+
+        public int GetNativeDataSize()
+        {
+            return IntPtr.Size;
+        }
+
+        static readonly ConstCharPtrMarshaler instance = new ConstCharPtrMarshaler();
+
+        public static ICustomMarshaler GetInstance(string cookie)
+        {
+            return instance;
         }
     }
 }
